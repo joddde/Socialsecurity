@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Security Break-Even Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .calculator {
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: none;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 10px;
+            margin-top: 20px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Social Security Break-Even Calculator</h1>
+    
+    <div class="calculator">
+        <div class="input-group">
+            <label for="currentAge">Current Age:</label>
+            <input type="number" id="currentAge" min="0" max="61" required>
+        </div>
+        
+        <div class="input-group">
+            <label for="earlyBenefit">Monthly Benefit at Age 62:</label>
+            <input type="number" id="earlyBenefit" min="0" required>
+        </div>
+        
+        <div class="input-group">
+            <label for="lateBenefit">Monthly Benefit at Age 67:</label>
+            <input type="number" id="lateBenefit" min="0" required>
+        </div>
+        
+        <button onclick="calculateBreakEven()">Calculate Break-Even</button>
+    </div>
+
+    <div id="result"></div>
+    
+    <div class="warning">
+        <strong>Important Note:</strong> Current Social Security projections indicate that by 2035, 
+        the trust fund will only be able to pay approximately 80% of scheduled benefits. This calculator 
+        automatically reduces benefits by 20% for calculations extending beyond 2035 to reflect this projected shortfall.
+    </div>
+
+    <script>
+        function calculateBreakEven() {
+            const currentAge = parseInt(document.getElementById('currentAge').value);
+            const earlyBenefit = parseFloat(document.getElementById('earlyBenefit').value);
+            const lateBenefit = parseFloat(document.getElementById('lateBenefit').value);
+            
+            if (isNaN(currentAge) || isNaN(earlyBenefit) || isNaN(lateBenefit)) {
+                alert('Please fill in all fields with valid numbers.');
+                return;
+            }
+
+            const monthsToAge62 = Math.max(0, (62 - currentAge) * 12);
+            const monthsToAge67 = (67 - currentAge) * 12;
+            
+            let earlyTotal = 0;
+            let lateTotal = 0;
+            const currentYear = new Date().getFullYear();
+            const reductionYear = 2035;
+
+            // Calculate cumulative benefits for early retirement (starting at 62)
+            for (let month = 0; month < monthsToAge67; month++) {
+                const year = currentYear + Math.floor((monthsToAge62 + month) / 12);
+                let monthlyAmount = earlyBenefit;
+                
+                if (year >= reductionYear) {
+                    monthlyAmount *= 0.8; // 20% reduction after 2035
+                }
+                
+                if (month >= monthsToAge62) {
+                    earlyTotal += monthlyAmount;
+                }
+            }
+
+            // Calculate cumulative benefits for late retirement (starting at 67)
+            for (let month = monthsToAge67; month < monthsToAge67 + 240; month++) { // Calculate for 20 years after age 67
+                const year = currentYear + Math.floor(month / 12);
+                let monthlyAmount = lateBenefit;
+                
+                if (year >= reductionYear) {
+                    monthlyAmount *= 0.8; // 20% reduction after 2035
+                }
+                
+                lateTotal += monthlyAmount;
+            }
+
+            // Calculate break-even point in months
+            let breakEvenMonths = 0;
+            let earlyRunningTotal = 0;
+            let lateRunningTotal = 0;
+            
+            while (lateRunningTotal <= earlyRunningTotal && breakEvenMonths < 240) { // Cap at 20 years
+                breakEvenMonths++;
+                const yearEarly = currentYear + Math.floor((monthsToAge62 + breakEvenMonths) / 12);
+                const yearLate = currentYear + Math.floor((monthsToAge67 + breakEvenMonths) / 12);
+                
+                let monthlyEarly = earlyBenefit;
+                let monthlyLate = lateBenefit;
+                
+                if (yearEarly >= reductionYear) monthlyEarly *= 0.8;
+                if (yearLate >= reductionYear) monthlyLate *= 0.8;
+                
+                earlyRunningTotal += monthlyEarly;
+                lateRunningTotal += monthlyLate;
+            }
+
+            const breakEvenAge = ((currentAge * 12 + monthsToAge67 + breakEvenMonths) / 12).toFixed(1);
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <h2>Results:</h2>
+                <p>If you start collecting at age 62, you'll receive approximately $${earlyBenefit.toFixed(2)} per month 
+                (reduced to $${(earlyBenefit * 0.8).toFixed(2)} after 2035).</p>
+                <p>If you wait until age 67, you'll receive approximately $${lateBenefit.toFixed(2)} per month 
+                (reduced to $${(lateBenefit * 0.8).toFixed(2)} after 2035).</p>
+                <p>Break-even age: ${breakEvenAge} years</p>
+                <p>This means you would need to live past age ${breakEvenAge} for waiting until age 67 to be financially beneficial.</p>
+            `;
+        }
+    </script>
+</body>
+</html>
