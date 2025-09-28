@@ -10,8 +10,7 @@
     .input-group { margin-bottom: 15px; }
     label { display: block; margin-bottom: 5px; font-weight: bold; }
     input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-    button { background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
-    button:hover { background-color: #0056b3; }
+    button { background-color: #007bff; color3; }
     #result { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; display: none; }
     .warning { background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 10px; margin-top: 20px; border-radius: 4px; }
     .error { background-color: #ffe6e6; border: 1px solid #ffb3b3; color: #a30000; padding: 10px; border-radius: 4px; margin-top: 10px; display: none; }
@@ -36,15 +35,15 @@
       <input type="number" id="lateBenefit" min="0" step="0.01" inputmode="decimal" required />
     </div>
 
-    <button id="calcBtn" type="button">Calculate Break-Even</button>
+    <button id="calcBtn" type="button" onclick="calculateBreakEven(event)">Calculate Break-Even</button>
     <div id="error" class="error" role="alert" aria-live="polite"></div>
   </div>
 
   <div id="result"></div>
 
   <div class="warning">
-    <strong>Important Note:</strong> If you don't know your estimated benefit at ages 62 and 67, go to the Social Security website at
-    https://secure.ssa.gov/</a> to find out.
+    <strong>Important Note:</strong> If you don't know your estimated benefit at ages 62 and 67, visit the
+    <a href="https://secure.ssa.gov/" targetebsite</a>.
     Current Social Security projections indicate that by 2035, the trust fund will only be able to pay approximately 80% of scheduled benefits.
     This calculator automatically reduces benefits by 20% for calculations extending beyond January 1, 2035 to reflect this projected shortfall.
   </div>
@@ -54,116 +53,3 @@
       return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    function showError(msg) {
-      const err = document.getElementById('error');
-      err.textContent = msg;
-      err.style.display = 'block';
-      document.getElementById('result').style.display = 'none';
-    }
-
-    function clearError() {
-      const err = document.getElementById('error');
-      err.textContent = '';
-      err.style.display = 'none';
-    }
-
-    // Helper: months between now and a target date, ignoring days (month-precision)
-    function monthsUntil(targetDate) {
-      const now = new Date();
-      return (targetDate.getFullYear() - now.getFullYear()) * 12
-           + (targetDate.getMonth() - now.getMonth());
-    }
-
-    function calculateBreakEven() {
-      try {
-        clearError();
-
-        const currentAge = parseInt(document.getElementById('currentAge').value, 10);
-        const earlyBenefit = parseFloat(document.getElementById('earlyBenefit').value);
-        const lateBenefit = parseFloat(document.getElementById('lateBenefit').value);
-
-        if (isNaN(currentAge) || isNaN(earlyBenefit) || isNaN(lateBenefit)) {
-          showError('Please fill in all fields with valid numbers.');
-          return;
-        }
-        if (currentAge < 0 || currentAge > 61) {
-          showError('Current Age must be between 0 and 61 for this calculator version.');
-          return;
-        }
-        if (earlyBenefit < 0 || lateBenefit < 0) {
-          showError('Benefit amounts must be zero or positive.');
-          return;
-        }
-
-        // Timing constants
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const reductionStart = new Date(2035, 0, 1); // Jan 1, 2035
-        const monthsToReduction = monthsUntil(reductionStart);
-
-        // Approximate months to 62 and 67 based on whole-age (no birth month known)
-        const monthsTo62 = Math.max(0, (62 - currentAge) * 12);
-        const monthsTo67 = (67 - currentAge) * 12;
-
-        // 1) Total collected from 62 to 67 (60 months), with month-precision reduction at 2035
-        const monthsBetween62And67 = 60;
-        let totalCollectedAt62 = 0;
-        for (let m = 0; m < monthsBetween62And67; m++) {
-          const idxFromNow = monthsTo62 + m;
-          const reduced = idxFromNow >= monthsToReduction; // on/after Jan 2035
-          const monthlyAmount = reduced ? earlyBenefit * 0.8 : earlyBenefit;
-          totalCollectedAt62 += monthlyAmount;
-        }
-
-        // 2) Monthly differences after 67, precise across the 2035 reduction
-        const D1 = lateBenefit - earlyBenefit; // before reduction
-        if (D1 <= 0) {
-          showError('Your benefit at 67 must be greater than your benefit at 62 to compute a break-even point.');
-          return;
-        }
-        const D2 = 0.8 * D1; // after reduction
-
-        // How many months after turning 67 occur before the reduction kicks in?
-        const monthsBeforeReductionAfter67 = Math.max(0, monthsToReduction - monthsTo67);
-
-        // 3) Compute break-even months after 67 across the two segments
-        let breakEvenMonthsAfter67 = 0;
-        let usedPreReductionMonths = 0;
-        let usedPostReductionMonths = 0;
-
-        if (monthsBeforeReductionAfter67 <= 0) {
-          // Reduction is already in effect at 67
-          breakEvenMonthsAfter67 = Math.ceil(totalCollectedAt62 / D2);
-          usedPostReductionMonths = breakEvenMonthsAfter67;
-        } else {
-          // Some months at D1 before 2035
-          const maxCatchUpBeforeReduction = D1 * monthsBeforeReductionAfter67;
-
-          if (totalCollectedAt62 <= maxCatchUpBeforeReduction) {
-            // Break-even occurs before 2035
-            breakEvenMonthsAfter67 = Math.ceil(totalCollectedAt62 / D1);
-            usedPreReductionMonths = breakEvenMonthsAfter67;
-          } else {
-            // Use all pre-2035 months, then continue post-2035
-            const remainingHeadStart = totalCollectedAt62 - maxCatchUpBeforeReduction;
-            const extraMonthsAfterReduction = Math.ceil(remainingHeadStart / D2);
-
-            breakEvenMonthsAfter67 = monthsBeforeReductionAfter67 + extraMonthsAfterReduction;
-            usedPreReductionMonths = monthsBeforeReductionAfter67;
-            usedPostReductionMonths = extraMonthsAfterReduction;
-          }
-        }
-
-        const breakEvenAge = 67 + (breakEvenMonthsAfter67 / 12);
-        const breakEvenAgeStr = breakEvenAge.toFixed(1);
-
-        // For messaging: when 62/67 starts occur (by year)
-        const startYear62 = currentYear + Math.floor(monthsTo62 / 12);
-        const startYear67 = currentYear + Math.floor(monthsTo67 / 12);
-
-        // Build small notes without nested template strings
-        let note62 = '';
-        if (monthsTo62 >= monthsToReduction) {
-          note62 = '<br>(reduced to $' + formatMoney(earlyBenefit * 0.8) + ' on/after Jan 2035)';
-        } else if (monthsTo62 + monthsBetween62And67 > monthsToReduction) {
-          note62 = '<br>(reduced to $' + formatMoney(earlyBenefit * 0.8) + ' starting Jan 2035 within the 62–67 period)';
