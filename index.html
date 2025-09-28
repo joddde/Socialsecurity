@@ -37,6 +37,194 @@
     .error { background-color: var(--err-bg); border: 1px solid var(--err-border); color: var(--err-text); padding: 10px; border-radius: 4px; margin-top: 10px; display: none; }
     .muted { color: #666; font-size: 0.9em; }
   </style>
+
+  <!-- Define ALL functions globally up front so onclick has access -->
+  <script>
+    // ---- helpers (global) ----
+    function formatMoney(n) {
+      return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function showError(msg) {
+      var err = document.getElementById('error');
+      if (!err) return;
+      err.textContent = msg;
+      err.style.display = 'block';
+      var res = document.getElementById('result');
+      if (res) {
+        res.style.display = 'none';
+        res.innerHTML = '';
+      }
+    }
+    function clearError() {
+      var err = document.getElementById('error');
+      if (!err) return;
+      err.textContent = '';
+      err.style.display = 'none';
+    }
+    // Month-precision difference between now and target (ignores days)
+    function monthsUntil(targetDate) {
+      var now = new Date();
+      return (targetDate.getFullYear() - now.getFullYear()) * 12
+           + (targetDate.getMonth() - now.getMonth());
+    }
+
+    // ---- main handler (global) ----
+    function calculateBreakEven(evt) {
+      try {
+        if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+        clearError();
+
+        var currentAge = parseInt(document.getElementById('currentAge').value, 10);
+        var earlyBenefit = parseFloat(document.getElementById('earlyBenefit').value);
+        var lateBenefit = parseFloat(document.getElementById('lateBenefit').value);
+
+        if (isNaN(currentAge) || isNaN(earlyBenefit) || isNaN(lateBenefit)) {
+          showError('Please fill in all fields with valid numbers.');
+          return;
+        }
+        if (currentAge < 0 || currentAge > 61) {
+          showError('Current Age must be between 0 and 61 for this calculator version.');
+          return;
+        }
+        if (earlyBenefit < 0 || lateBenefit < 0) {
+          showError('Benefit amounts must be zero or positive.');
+          return;
+        }
+
+        // Timing constants
+        var nowDate = new Date();
+        var currentYear = nowDate.getFullYear();
+        var reductionStart = new Date(2035, 0, 1); // Jan 1, 2035
+        var monthsToReduction = monthsUntil(reductionStart);
+
+        // Approx months to 62/67 (whole-year granularity)
+        var monthsTo62 = Math.max(0, (62 - currentAge) * 12);
+        var monthsTo67 = (67 - currentAge) * 12;
+
+        // 1) Total collected from 62 to 67 (60 months), with month-precise reduction at 2035
+        var monthsBetween62And67 = 60;
+        var totalCollectedAt62 = 0;
+        for (var m = 0; m < monthsBetween62And67; m++) {
+          var idxFromNow = monthsTo62 + m;                // month index from "now"
+          var reduced = idxFromNow >= monthsToReduction;  // on/after Jan 2035
+          var monthlyAmount = reduced ? earlyBenefit * 0.8 : earlyBenefit;
+          totalCollectedAt62 += monthlyAmount;
+        }
+
+        // 2) Monthly differences after 67, precise across the 2035 reduction
+        var D1 = lateBenefit - earlyBenefit; // before reduction
+        if (D1 <= 0) {
+          showError('Your benefit at 67 must be greater than your benefit at 62 to compute a break-even point.');
+          return;
+        }
+        var D2 = 0.8 * D1; // after reduction
+
+        // Months after turning 67 that occur BEFORE reduction kicks in
+        var monthsBeforeReductionAfter67 = Math.max(0, monthsToReduction - monthsTo67);
+
+        // 3) Compute break-even months after 67 across both segments
+        var breakEvenMonthsAfter67 = 0;
+        var usedPreReductionMonths = 0;
+        var usedPostReductionMonths = 0;
+
+        if (monthsBeforeReductionAfter67 <= 0) {
+          // Reduction is already in effect at 67
+          breakEvenMonthsAfter67 = Math.ceil(totalCollectedAt62 / D2);
+          usedPostReductionMonths = breakEvenMonthsAfter67;
+        } else {
+          // Some months at full difference (D1) before 2035
+          var maxCatchUpBeforeReduction = D1 * monthsBeforeReductionAfter67;
+
+          if (totalCollectedAt62 <= maxCatchUpBeforeReduction) {
+            // Break-even happens before 2035
+            breakEvenMonthsAfter67 = Math.ceil(totalCollectedAt62 / D1);
+            usedPreReductionMonths = breakEvenMonthsAfter67;
+          } else {
+            // Use all pre-2035 months, then continue post-2035 at reduced difference
+            var remainingHeadStart = totalCollectedAt62 - maxCatchUpBeforeReduction;
+            var extraMonthsAfterReduction = Math.ceil(remainingHeadStart / D2);
+
+            breakEvenMonthsAfter67 = monthsBeforeReductionAfter67 + extraMonthsAfterReduction;
+            usedPreReductionMonths = monthsBeforeReductionAfter67;
+            usedPostReductionMonths = extraMonthsAfterReduction;
+          }
+        }
+
+        var breakEvenAge = 67 + (breakEvenMonthsAfter67 / 12);
+        var breakEvenAgeStr = breakEvenAge.toFixed(1);
+
+        // Notes shown about when reductions hit
+        var note62 = '';
+        if (monthsTo62 >= monthsToReduction) {
+          note62 = '<br>(reduced to $' + formatMoney(earlyBenefit * 0.8) + ' on/after Jan 2035)';
+        } else if (monthsTo62 + monthsBetween62And67 > monthsToReduction) {
+          note62 = '<br>(reduced to $' + formatMoney(earlyBenefit * 0.8) + ' starting Jan 2035 within the 62–67 period)';
+        }
+
+        var note67 = '';
+        if (monthsTo67 >= monthsToReduction) {
+          note67 = '<br>(reduced to $' + formatMoney(lateBenefit * 0.8) + ' on/after Jan 2035)';
+        }
+
+        var catchupLine =
+          '<ul>' +
+            '<li>Before Jan 2035: $' + formatMoney(D1) + ' (' + monthsBeforeReductionAfter67 + ' month' + (monthsBeforeReductionAfter67 === 1 ? '' : 's') + ' available)</li>' +
+            '<li>On/after Jan 2035: $' + formatMoney(D2) + '</li>' +
+          '</ul>';
+
+        var resultDiv = document.getElementById('result');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML =
+          '<h2>Break-Even Analysis Results:</h2>' +
+
+          '<h3>If you start at age 62:</h3>' +
+          '<ul>' +
+            '<li>Monthly benefit: $' + formatMoney(earlyBenefit) + note62 + '</li>' +
+            '<li>Total collected by age 67: $' + formatMoney(totalCollectedAt62) + '</li>' +
+          '</ul>' +
+
+          '<h3>If you wait until age 67:</h3>' +
+          '<ul>' +
+            '<li>Monthly benefit: $' + formatMoney(lateBenefit) + note67 + '</li>' +
+            '<li>Monthly "catch-up" difference after 67:' + catchupLine + '</li>' +
+          '</ul>' +
+
+          '<h3>Break-Even Calculation:</h3>' +
+          '<ul>' +
+            '<li>Head start from claiming at 62 (collected by age 67): $' + formatMoney(totalCollectedAt62) + '</li>' +
+            '<li>Months used before Jan 2035 at $' + formatMoney(D1) + ': ' + usedPreReductionMonths + '</li>' +
+            '<li>Months used on/after Jan 2035 at $' + formatMoney(D2) + ': ' + usedPostReductionMonths + '</li>' +
+          '</ul>' +
+
+          '<h3>Result:</h3>' +
+          '<ul>' +
+            '<li>Break-even age: ' + breakEvenAgeStr + ' years</li>' +
+            '<li>Time to break even after age 67: ' + breakEvenMonthsAfter67 + ' months (' + (breakEvenMonthsAfter67/12).toFixed(1) + ' years)</li>' +
+            '<li>Total amount to make up: $' + formatMoney(totalCollectedAt62) + '</li>' +
+          '</ul>' +
+
+          '<p><strong>Summary:</strong> You would need to live to age ' + breakEvenAgeStr +
+          ' for waiting until age 67 to be financially beneficial. This calculation applies the 2035 reduction exactly when it occurs in the timeline.</p>';
+
+      } catch (e) {
+        console.error(e);
+        showError('Unexpected error: ' + (e && e.message ? e.message : String(e)));
+      }
+    }
+
+    // Backup binding in case the inline onclick is removed/stripped
+    document.addEventListener('DOMContentLoaded', function () {
+      var btn = document.getElementById('calcBtn');
+      if (btn && btn.addEventListener) {
+        btn.addEventListener('click', calculateBreakEven);
+      }
+      // Enter key also triggers calculation
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') calculateBreakEven(e);
+      });
+      console.log('Calculator initialized');
+    });
+  </script>
 </head>
 <body>
   <h1>Social Security Break-Even Calculator</h1>
@@ -44,7 +232,6 @@
   <div class="calculator">
     <div class="input-group">
       <label for="currentAge">Current Age:</label>
-      <!-- Keeping your original 0–61 range -->
       <input type="number" id="currentAge" min="0" max="61" required />
     </div>
 
@@ -58,26 +245,4 @@
       <input type="number" id="lateBenefit" min="0" step="0.01" inputmode="decimal" required />
     </div>
 
-    <!-- Inline onclick as a fallback; also bound via JS below -->
-    <button id="calcBtn" type="button" onclick="calculateBreakEven(event)">Calculate Break-Even</button>
-    <div id="error" class="error" role="alert" aria-live="polite"></div>
-  </div>
-
-  <div id="result"></div>
-
-  <div class="warning">
-    <strong>Important Note:</strong> If you don't know your estimated benefit at ages 62 and 67, visit the
-    https://secure.ssa.gov/Social Security website</a>.
-    Current Social Security projections indicate that by 2035, the trust fund will only be able to pay approximately 80% of scheduled benefits.
-    This calculator automatically reduces benefits by 20% for calculations extending beyond January 1, 2035 to reflect this projected shortfall.
-  </div>
-
-  <p class="muted">Tip: If the button does nothing, open your browser console (F12 → Console) to check for messages about blocked scripts (CSP).</p>
-
-  <noscript>
-    <p class="error">JavaScript is required for this calculator.</p>
-  </noscript>
-
-  <!-- All logic inline below (single file) -->
-  <script>
-    // Make the function global for the inline onclick fallback
+    <!-- Inline onclick calls the already-defined global function -->
