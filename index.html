@@ -5,16 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Social Security Break-Even Calculator</title>
   <style>
+    :root {
+      --primary: #007bff;
+      --primary-dark: #0056b3;
+      --border: #ddd;
+      --bg: #f5f5f5;
+      --warn-bg: #fff3cd;
+      --warn-border: #ffeeba;
+      --warn-text: #856404;
+      --err-bg: #ffe6e6;
+      --err-border: #ffb3b3;
+      --err-text: #a30000;
+    }
     body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-    .calculator { background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+    h1 { margin-top: 0; }
+    .calculator { background-color: var(--bg); padding: 20px; border-radius: 8px; margin-bottom: 20px; }
     .input-group { margin-bottom: 15px; }
     label { display: block; margin-bottom: 5px; font-weight: bold; }
-    input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-    button { background-color: #007bff; color: #ffffff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
-    button:hover { background-color: #0056b3; }
-    #result { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; display: none; }
-    .warning { background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 10px; margin-top: 20px; border-radius: 4px; }
-    .error { background-color: #ffe6e6; border: 1px solid #ffb3b3; color: #a30000; padding: 10px; border-radius: 4px; margin-top: 10px; display: none; }
+    input[type="number"] { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; }
+    button {
+      background-color: var(--primary);
+      color: #ffffff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover { background-color: var(--primary-dark); }
+    #result { margin-top: 20px; padding: 15px; border: 1px solid var(--border); border-radius: 4px; display: none; }
+    .warning { background-color: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); padding: 10px; margin-top: 20px; border-radius: 4px; }
+    .error { background-color: var(--err-bg); border: 1px solid var(--err-border); color: var(--err-text); padding: 10px; border-radius: 4px; margin-top: 10px; display: none; }
     .muted { color: #666; font-size: 0.9em; }
   </style>
 </head>
@@ -24,6 +44,7 @@
   <div class="calculator">
     <div class="input-group">
       <label for="currentAge">Current Age:</label>
+      <!-- Keeping your original 0–61 range -->
       <input type="number" id="currentAge" min="0" max="61" required />
     </div>
 
@@ -37,7 +58,8 @@
       <input type="number" id="lateBenefit" min="0" step="0.01" inputmode="decimal" required />
     </div>
 
-    <button id="calcBtn" type="button">Calculate Break-Even</button>
+    <!-- Inline onclick as a fallback; also bound via JS below -->
+    <button id="calcBtn" type="button" onclick="calculateBreakEven(event)">Calculate Break-Even</button>
     <div id="error" class="error" role="alert" aria-live="polite"></div>
   </div>
 
@@ -50,12 +72,12 @@
     This calculator automatically reduces benefits by 20% for calculations extending beyond January 1, 2035 to reflect this projected shortfall.
   </div>
 
-  <p class="muted">If the button does nothing, open your browser console and check for CSP or script blocking messages.</p>
+  <p class="muted">Tip: If the button does nothing, open your browser console (F12 → Console) to check for messages about blocked scripts (CSP).</p>
 
-  <!-- IMPORTANT: point src to the real path where you host calculator.js -->
-  calculator.js</script>
   <noscript>
     <p class="error">JavaScript is required for this calculator.</p>
   </noscript>
-</body>
-</html>
+
+  <!-- All logic inline below (single file) -->
+  <script>
+    // Make the function global for the inline onclick fallback
