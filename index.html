@@ -10,10 +10,12 @@
     .input-group { margin-bottom: 15px; }
     label { display: block; margin-bottom: 5px; font-weight: bold; }
     input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-    button { background-color: #007bff; color3; }
+    button { background-color: #007bff; color: #ffffff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+    button:hover { background-color: #0056b3; }
     #result { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; display: none; }
     .warning { background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 10px; margin-top: 20px; border-radius: 4px; }
     .error { background-color: #ffe6e6; border: 1px solid #ffb3b3; color: #a30000; padding: 10px; border-radius: 4px; margin-top: 10px; display: none; }
+    .muted { color: #666; font-size: 0.9em; }
   </style>
 </head>
 <body>
@@ -35,7 +37,7 @@
       <input type="number" id="lateBenefit" min="0" step="0.01" inputmode="decimal" required />
     </div>
 
-    <button id="calcBtn" type="button" onclick="calculateBreakEven(event)">Calculate Break-Even</button>
+    <button id="calcBtn" type="button">Calculate Break-Even</button>
     <div id="error" class="error" role="alert" aria-live="polite"></div>
   </div>
 
@@ -43,13 +45,17 @@
 
   <div class="warning">
     <strong>Important Note:</strong> If you don't know your estimated benefit at ages 62 and 67, visit the
-    <a href="https://secure.ssa.gov/" targetebsite</a>.
+    https://secure.ssa.gov/Social Security website</a>.
     Current Social Security projections indicate that by 2035, the trust fund will only be able to pay approximately 80% of scheduled benefits.
     This calculator automatically reduces benefits by 20% for calculations extending beyond January 1, 2035 to reflect this projected shortfall.
   </div>
 
-  <script>
-    function formatMoney(n) {
-      return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
+  <p class="muted">If the button does nothing, open your browser console and check for CSP or script blocking messages.</p>
 
+  <!-- IMPORTANT: point src to the real path where you host calculator.js -->
+  calculator.js</script>
+  <noscript>
+    <p class="error">JavaScript is required for this calculator.</p>
+  </noscript>
+</body>
+</html>
