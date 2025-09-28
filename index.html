@@ -1,21 +1,44 @@
-<!-- Social Security Break-Even Calculator -->
-<div id="ss-breakeven">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Social Security Break-Even Calculator</title>
   <style>
-    /* Scoped styles so they don't leak */
-    #ss-breakeven { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-    #ss-breakeven h1 { margin-top: 0; }
-    #ss-breakeven .calculator { background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-    #ss-breakeven .input-group { margin-bottom: 15px; }
-    #ss-breakeven label { display: block; margin-bottom: 5px; font-weight: bold; }
-    #ss-breakeven input[type="number"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
-    #ss-breakeven .btn { display: inline-block; background-color: #007bff; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; user-select: none; }
-    #ss-breakeven .btn:hover, #ss-breakeven .btn:focus { background-color: #0056b3; }
-    #ss-breakeven #result { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; display: none; }
-    #ss-breakeven .warning { background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 10px; margin-top: 20px; border-radius: 4px; }
-    #ss-breakeven .error { background-color: #ffe6e6; border: 1px solid #ffb3b3; color: #a30000; padding: 10px; border-radius: 4px; margin-top: 10px; display: none; }
-    #ss-breakeven .muted { color: #666; font-size: 0.9em; }
+    :root {
+      --primary: #007bff;
+      --primary-dark: #0056b3;
+      --border: #ddd;
+      --bg: #f5f5f5;
+      --warn-bg: #fff3cd;
+      --warn-border: #ffeeba;
+      --warn-text: #856404;
+      --err-bg: #ffe6e6;
+      --err-border: #ffb3b3;
+      --err-text: #a30000;
+    }
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    h1 { margin-top: 0; }
+    .calculator { background-color: var(--bg); padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+    .input-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-weight: bold; }
+    input[type="number"] { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; }
+    button {
+      background-color: var(--primary);
+      color: #ffffff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover { background-color: var(--primary-dark); }
+    #result { margin-top: 20px; padding: 15px; border: 1px solid var(--border); border-radius: 4px; display: none; }
+    .warning { background-color: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); padding: 10px; margin-top: 20px; border-radius: 4px; }
+    .error { background-color: var(--err-bg); border: 1px solid var(--err-border); color: var(--err-text); padding: 10px; border-radius: 4px; margin-top: 10px; display: none; }
+    .muted { color: #666; font-size: 0.9em; }
   </style>
-
+</head>
+<body>
   <h1>Social Security Break-Even Calculator</h1>
 
   <div class="calculator">
@@ -34,8 +57,7 @@
       <input type="number" id="lateBenefit" min="0" step="0.01" inputmode="decimal" required />
     </div>
 
-    <!-- Anchor styled as a button (most CMSs allow this) -->
-    <a id="calcBtn" hrefn</a>
+    <button id="calcBtn" type="button">Calculate Break-Even</button>
     <div id="error" class="error" role="alert" aria-live="polite"></div>
   </div>
 
@@ -48,5 +70,195 @@
     This calculator automatically reduces benefits by 20% for calculations extending beyond January 1, 2035 to reflect this projected shortfall.
   </div>
 
-  <p class="muted">If clicking the button does nothing, your site may block inline scripts. Ensure you added the site-wide script as shown below.</p>
-</div>
+  <p class="muted">Open this page at your GitHub Pages URL (https://YOURNAME.github.io/ or https://YOURNAME.github.io/REPO/). Viewing it on github.com won’t run scripts.</p>
+
+  <noscript>
+    <p class="error">JavaScript is required for this calculator.</p>
+  </noscript>
+
+  <script>
+    // ---- helpers ----
+    function formatMoney(n) {
+      return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function showError(msg) {
+      var err = document.getElementById('error');
+      if (!err) return;
+      err.textContent = msg;
+      err.style.display = 'block';
+      var res = document.getElementById('result');
+      if (res) {
+        res.style.display = 'none';
+        res.innerHTML = '';
+      }
+    }
+    function clearError() {
+      var err = document.getElementById('error');
+      if (!err) return;
+      err.textContent = '';
+      err.style.display = 'none';
+    }
+    // Month-precision difference between now and target (ignores days)
+    function monthsUntil(targetDate) {
+      var now = new Date();
+      return (targetDate.getFullYear() - now.getFullYear()) * 12
+           + (targetDate.getMonth() - now.getMonth());
+    }
+
+    // ---- main calc ----
+    function calculateBreakEven(evt) {
+      try {
+        if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+        clearError();
+
+        var currentAge = parseInt(document.getElementById('currentAge').value, 10);
+        var earlyBenefit = parseFloat(document.getElementById('earlyBenefit').value);
+        var lateBenefit = parseFloat(document.getElementById('lateBenefit').value);
+
+        if (isNaN(currentAge) || isNaN(earlyBenefit) || isNaN(lateBenefit)) {
+          showError('Please fill in all fields with valid numbers.');
+          return;
+        }
+        if (currentAge < 0 || currentAge > 61) {
+          showError('Current Age must be between 0 and 61 for this calculator version.');
+          return;
+        }
+        if (earlyBenefit < 0 || lateBenefit < 0) {
+          showError('Benefit amounts must be zero or positive.');
+          return;
+        }
+
+        // Timing constants
+        var reductionStart = new Date(2035, 0, 1); // Jan 1, 2035
+        var monthsToReduction = monthsUntil(reductionStart);
+
+        // Approx months to 62/67 (whole-year granularity)
+        var monthsTo62 = Math.max(0, (62 - currentAge) * 12);
+        var monthsTo67 = (67 - currentAge) * 12;
+
+        // 1) Total collected from 62 to 67 (60 months), apply reduction precisely at 2035
+        var monthsBetween62And67 = 60;
+        var totalCollectedAt62 = 0;
+        for (var m = 0; m < monthsBetween62And67; m++) {
+          var idxFromNow = monthsTo62 + m;                // month index from "now"
+          var reduced = idxFromNow >= monthsToReduction;  // on/after Jan 2035
+          var monthlyAmount = reduced ? earlyBenefit * 0.8 : earlyBenefit;
+          totalCollectedAt62 += monthlyAmount;
+        }
+
+        // 2) Monthly differences after 67, precise across the 2035 reduction
+        var D1 = lateBenefit - earlyBenefit; // before reduction
+        if (D1 <= 0) {
+          showError('Your benefit at 67 must be greater than your benefit at 62 to compute a break-even point.');
+          return;
+        }
+        var D2 = 0.8 * D1; // after reduction
+
+        // Months after turning 67 that occur BEFORE the reduction kicks in
+        var monthsBeforeReductionAfter67 = Math.max(0, monthsToReduction - monthsTo67);
+
+        // 3) Compute break-even months after 67 across both segments
+        var breakEvenMonthsAfter67 = 0;
+        var usedPreReductionMonths = 0;
+        var usedPostReductionMonths = 0;
+
+        if (monthsBeforeReductionAfter67 <= 0) {
+          // Reduction is already in effect at 67
+          breakEvenMonthsAfter67 = Math.ceil(totalCollectedAt62 / D2);
+          usedPostReductionMonths = breakEvenMonthsAfter67;
+        } else {
+          // Some months at full difference (D1) before 2035
+          var maxCatchUpBeforeReduction = D1 * monthsBeforeReductionAfter67;
+
+          if (totalCollectedAt62 <= maxCatchUpBeforeReduction) {
+            // Break-even happens before 2035
+            breakEvenMonthsAfter67 = Math.ceil(totalCollectedAt62 / D1);
+            usedPreReductionMonths = breakEvenMonthsAfter67;
+          } else {
+            // Use all pre-2035 months, then continue post-2035 at reduced difference
+            var remainingHeadStart = totalCollectedAt62 - maxCatchUpBeforeReduction;
+            var extraMonthsAfterReduction = Math.ceil(remainingHeadStart / D2);
+
+            breakEvenMonthsAfter67 = monthsBeforeReductionAfter67 + extraMonthsAfterReduction;
+            usedPreReductionMonths = monthsBeforeReductionAfter67;
+            usedPostReductionMonths = extraMonthsAfterReduction;
+          }
+        }
+
+        var breakEvenAge = 67 + (breakEvenMonthsAfter67 / 12);
+        var breakEvenAgeStr = breakEvenAge.toFixed(1);
+
+        // Notes shown to the user about when reductions hit
+        var note62 = '';
+        if (monthsTo62 >= monthsToReduction) {
+          note62 = '<br>(reduced to $' + formatMoney(earlyBenefit * 0.8) + ' on/after Jan 2035)';
+        } else if (monthsTo62 + monthsBetween62And67 > monthsToReduction) {
+          note62 = '<br>(reduced to $' + formatMoney(earlyBenefit * 0.8) + ' starting Jan 2035 within the 62–67 period)';
+        }
+
+        var note67 = '';
+        if (monthsTo67 >= monthsToReduction) {
+          note67 = '<br>(reduced to $' + formatMoney(lateBenefit * 0.8) + ' on/after Jan 2035)';
+        }
+
+        var catchupLine =
+          '<ul>' +
+            '<li>Before Jan 2035: $' + formatMoney(D1) + ' (' + monthsBeforeReductionAfter67 + ' month' + (monthsBeforeReductionAfter67 === 1 ? '' : 's') + ' available)</li>' +
+            '<li>On/after Jan 2035: $' + formatMoney(D2) + '</li>' +
+          '</ul>';
+
+        var resultDiv = document.getElementById('result');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML =
+          '<h2>Break-Even Analysis Results:</h2>' +
+
+          '<h3>If you start at age 62:</h3>' +
+          '<ul>' +
+            '<li>Monthly benefit: $' + formatMoney(earlyBenefit) + note62 + '</li>' +
+            '<li>Total collected by age 67: $' + formatMoney(totalCollectedAt62) + '</li>' +
+          '</ul>' +
+
+          '<h3>If you wait until age 67:</h3>' +
+          '<ul>' +
+            '<li>Monthly benefit: $' + formatMoney(lateBenefit) + note67 + '</li>' +
+            '<li>Monthly "catch-up" difference after 67:' + catchupLine + '</li>' +
+          '</ul>' +
+
+          '<h3>Break-Even Calculation:</h3>' +
+          '<ul>' +
+            '<li>Head start from claiming at 62 (collected by age 67): $' + formatMoney(totalCollectedAt62) + '</li>' +
+            '<li>Months used before Jan 2035 at $' + formatMoney(D1) + ': ' + usedPreReductionMonths + '</li>' +
+            '<li>Months used on/after Jan 2035 at $' + formatMoney(D2) + ': ' + usedPostReductionMonths + '</li>' +
+          '</ul>' +
+
+          '<h3>Result:</h3>' +
+          '<ul>' +
+            '<li>Break-even age: ' + breakEvenAgeStr + ' years</li>' +
+            '<li>Time to break even after age 67: ' + breakEvenMonthsAfter67 + ' months (' + (breakEvenMonthsAfter67/12).toFixed(1) + ' years)</li>' +
+            '<li>Total amount to make up: $' + formatMoney(totalCollectedAt62) + '</li>' +
+          '</ul>' +
+
+          '<p><strong>Summary:</strong> You would need to live to age ' + breakEvenAgeStr +
+          ' for waiting until age 67 to be financially beneficial. This calculation applies the 2035 reduction exactly when it occurs in the timeline.</p>';
+
+      } catch (e) {
+        console.error(e);
+        showError('Unexpected error: ' + (e && e.message ? e.message : String(e)));
+      }
+    }
+
+    // Bind events after DOM is ready
+    document.addEventListener('DOMContentLoaded', function () {
+      var btn = document.getElementById('calcBtn');
+      if (btn) {
+        btn.addEventListener('click', calculateBreakEven);
+      }
+      // Pressing Enter triggers the calc
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') calculateBreakEven(e);
+      });
+      console.log('Calculator initialized');
+    });
+  </script>
+</body>
+</html>
